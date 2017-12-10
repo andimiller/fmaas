@@ -97,14 +97,11 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                   implicitly[Connector[OC]].output[E, O](Json.obj())
                 }
                 main <- config.traverse { c =>
-                  flatMap.apply(c).map(fm => input.through(fm).to(output))
+                  flatMap.apply(c).map(fm => input.through(fm).to(output)).map(_.flatMap{_ => Stream.empty.covaryAll[E, ExitCode]})
                 }
                 exit <- Effect[E].pure(ExitCode(0))
               } yield
-                main.toOption.getOrElse(Stream.empty.covaryAll[E, Unit]).map {
-                  _ =>
-                    exit
-                }
+                main.toOption.getOrElse(Stream.empty.covaryAll[E, ExitCode]) ++ Stream.emit(exit)
             case Test(path) =>
               for {
                 fileExists <- Effect[E].delay {
