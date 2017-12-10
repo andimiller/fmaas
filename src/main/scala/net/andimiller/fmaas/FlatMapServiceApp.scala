@@ -90,19 +90,29 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                   }
                   .map(_.andThen(identity))
                 _ <- Effect[E].delay { println(config) }
-                input <- Effect[E].delay {
-                  implicitly[Connector[IC]].input[E, I](Json.obj())
+                input <- config.traverse { c =>
+                  Effect[E].delay {
+                    implicitly[Connector[IC]].input[E, I](c.input)
+                  }
                 }
-                output <- Effect[E].delay {
-                  implicitly[Connector[OC]].output[E, O](Json.obj())
+                output <- config.traverse { c =>
+                  Effect[E].delay {
+                    implicitly[Connector[OC]].output[E, O](c.output)
+                  }
                 }
-                main <- config.traverse { c =>
-                  flatMap
-                    .apply(c.service)
-                    .map(fm => input.through(fm).to(output))
-                    .map(_.flatMap { _ =>
-                      Stream.empty.covaryAll[E, ExitCode]
-                    })
+                mainargs <- Effect[E].pure {
+                  (config, input, output).mapN {
+                    case (c, i, o) => Tuple3(c, i, o)
+                  }
+                }
+                main <- mainargs.traverse {
+                  case (c, i, o) =>
+                    flatMap
+                      .apply(c.service)
+                      .map(fm => i.through(fm).to(o))
+                      .map(_.flatMap { _ =>
+                        Stream.empty.covaryAll[E, ExitCode]
+                      })
                 }
                 exit <- Effect[E].pure(ExitCode(0))
               } yield
@@ -126,15 +136,17 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 json <- body
                   .traverse { b =>
-                    Effect[E].delay(parse(b).toValidated.leftMap {
-                      _.toString()
-                    })
+                    Effect[E].delay(
+                      io.circe.yaml.parser.parse(b).toValidated.leftMap {
+                        _.toString()
+                      })
                   }
                   .map(_.andThen(identity))
                 config <- json
                   .traverse { j =>
                     Effect[E].delay(
-                      Decoder[C]
+                      FlatMapServiceConfiguration
+                        .decoderFor[C]
                         .decodeJson(j)
                         .toValidated
                         .leftMap(_.toString()))
