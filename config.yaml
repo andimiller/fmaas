@@ -1,0 +1,5 @@
+input: {}
+output: {}
+adminPort: 9090
+service:
+  blah: blaaah

@@ -58,7 +58,7 @@ object Connector {
       o: Stream[E, O] =>
         val encoded = for {
           json <- o.map(implicitly[Encoder[O]].apply)
-          string <- Stream.emit(json.noSpaces)
+          string <- Stream.emit(json.noSpaces + System.lineSeparator())
         } yield string
         encoded.through(fs2.text.utf8Encode[E]).through(fs2.io.stdout[E])
     }

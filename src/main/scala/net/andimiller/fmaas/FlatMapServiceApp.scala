@@ -38,8 +38,6 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                                  I: Decoder,
                                  O: Encoder]()
     extends StreamApp[E] {
-  private val effect = Effect[E]
-
   def name: String
   def description: String
   def flatMap: Kleisli[E, C, Pipe[E, I, O]]
@@ -75,7 +73,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 json <- body
                   .traverse { b =>
-                    Effect[E].delay(parse(b).toValidated.leftMap {
+                    Effect[E].delay(io.circe.yaml.parser.parse(b).toValidated.leftMap {
                       _.toString()
                     })
                   }
@@ -83,7 +81,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 config <- json
                   .traverse { j =>
                     Effect[E].delay(
-                      Decoder[C]
+                      FlatMapServiceConfiguration.decoderFor[C]
                         .decodeJson(j)
                         .toValidated
                         .leftMap(_.toString()))
@@ -97,7 +95,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                   implicitly[Connector[OC]].output[E, O](Json.obj())
                 }
                 main <- config.traverse { c =>
-                  flatMap.apply(c).map(fm => input.through(fm).to(output)).map(_.flatMap{_ => Stream.empty.covaryAll[E, ExitCode]})
+                  flatMap.apply(c.service).map(fm => input.through(fm).to(output)).map(_.flatMap{_ => Stream.empty.covaryAll[E, ExitCode]})
                 }
                 exit <- Effect[E].pure(ExitCode(0))
               } yield
@@ -185,40 +183,4 @@ abstract class FlatMapServiceApp[E[_]: Effect,
 
 }
 
-case class Config(blah: String)
-object Config {
-  import io.circe.generic.auto._
-  implicit val configDecoder = implicitly[Decoder[Config]]
-}
 
-case class ExampleIn(value: String)
-object ExampleIn {
-  import io.circe.generic.auto._
-  implicit val indec = implicitly[Decoder[ExampleIn]]
-}
-case class ExampleOut(value: String)
-object ExampleOut {
-  import io.circe.generic.auto._
-  implicit val outdec = implicitly[Encoder[ExampleOut]]
-}
-
-object Main
-    extends FlatMapServiceApp[IO,
-                              Config,
-                              Connector.StdinStdout,
-                              Connector.StdinStdout,
-                              ExampleIn,
-                              ExampleOut] {
-  override def name = "myprogram"
-  override def description = "a cool program"
-  override def flatMap: Kleisli[IO, Config, Pipe[IO, ExampleIn, ExampleOut]] =
-    Kleisli { _ =>
-      IO {
-        { in: Stream[IO, ExampleIn] =>
-          in.map { i =>
-            ExampleOut(i.value.reverse)
-          }
-        }
-      }
-    }
-}
