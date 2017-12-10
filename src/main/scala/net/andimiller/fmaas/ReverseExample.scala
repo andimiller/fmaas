@@ -28,8 +28,8 @@ object Main
                               Connector.StdinStdout,
                               ExampleIn,
                               ExampleOut] {
-  override def name = "myprogram"
-  override def description = "a cool program"
+  override def name = "reverser"
+  override def description = "Reverses strings from stdin to stdout"
   override def flatMap: Kleisli[IO, Config, Pipe[IO, ExampleIn, ExampleOut]] =
     Kleisli { _ =>
       IO {
