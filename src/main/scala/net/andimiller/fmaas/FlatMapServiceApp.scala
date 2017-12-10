@@ -2,14 +2,12 @@ package net.andimiller.fmaas
 
 import java.nio.file.Path
 
-import cats.data.{Kleisli, NonEmptyList}
-import cats.{Applicative, Monad}
+import cats.data.Kleisli
 import cats.effect.{Effect, IO}
 import fs2.{Pipe, Stream, StreamApp}
 import com.monovore.decline._
-import io.circe.{Decoder, Encoder, ParsingFailure, Json}
+import io.circe.{Decoder, Encoder, Json}
 import fs2.StreamApp.ExitCode
-import com.monovore.decline.CommandApp
 import cats.implicits._
 import cats.syntax._
 import net.andimiller.fmaas.FlatMapServiceApp._
@@ -33,7 +31,7 @@ object FlatMapServiceApp {
   * @tparam I input type
   * @tparam O output type
   */
-abstract class FlatMapServiceApp[E[_]: Effect: Applicative,
+abstract class FlatMapServiceApp[E[_]: Effect,
                                  C: Decoder,
                                  IC: Connector,
                                  OC: Connector,
