@@ -40,6 +40,8 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                                  I: Decoder,
                                  O: Encoder]()
     extends StreamApp[E] {
+  private val ee = Effect[E]
+
   def name: String
   def description: String
   def flatMap: Kleisli[E, C, Pipe[E, I, O]]
@@ -61,7 +63,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
     Stream.force(
       command.parse(args) match {
         case Left(h) =>
-          Effect[E].delay {
+          ee.delay {
             println(h.toString())
             Stream.emit(ExitCode(1)).covary[E]
           }
@@ -69,7 +71,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
           c match {
             case Server(path) =>
               for {
-                fileExists <- Effect[E].delay {
+                fileExists <- ee.delay {
                   Option(path.toFile)
                     .map(_.canRead)
                     .filter(identity)
@@ -84,15 +86,14 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 json <- body
                   .traverse { b =>
-                    Effect[E].delay(
-                      io.circe.yaml.parser.parse(b).toValidated.leftMap {
-                        _.toString()
-                      })
+                    ee.delay(io.circe.yaml.parser.parse(b).toValidated.leftMap {
+                      _.toString()
+                    })
                   }
                   .map(_.andThen(identity))
                 config <- json
                   .traverse { j =>
-                    Effect[E].delay(
+                    ee.delay(
                       FlatMapServiceConfiguration
                         .decoderFor[C]
                         .decodeJson(j)
@@ -100,18 +101,18 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                         .leftMap(_.toString()))
                   }
                   .map(_.andThen(identity))
-                _ <- Effect[E].delay { println(config) }
+                _ <- ee.delay { println(config) }
                 input <- config.traverse { c =>
-                  Effect[E].delay {
+                  ee.delay {
                     implicitly[Connector[IC]].input[E, I](c.input)
                   }
                 }
                 output <- config.traverse { c =>
-                  Effect[E].delay {
+                  ee.delay {
                     implicitly[Connector[OC]].output[E, O](c.output)
                   }
                 }
-                mainargs <- Effect[E].pure {
+                mainargs <- ee.pure {
                   buildMainArgs((config, input, output))
                 }
                 main <- mainargs.traverse {
@@ -123,14 +124,14 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                         Stream.empty.covaryAll[E, ExitCode]
                       })
                 }
-                exit <- Effect[E].pure(ExitCode(0))
+                exit <- ee.pure(ExitCode(0))
               } yield
                 main.toOption
                   .getOrElse(Stream.empty.covaryAll[E, ExitCode]) ++ Stream
                   .emit(exit)
             case Test(path) =>
               for {
-                fileExists <- Effect[E].delay {
+                fileExists <- ee.delay {
                   Option(path.toFile)
                     .map(_.canRead)
                     .filter(identity)
@@ -145,15 +146,14 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 json <- body
                   .traverse { b =>
-                    Effect[E].delay(
-                      io.circe.yaml.parser.parse(b).toValidated.leftMap {
-                        _.toString()
-                      })
+                    ee.delay(io.circe.yaml.parser.parse(b).toValidated.leftMap {
+                      _.toString()
+                    })
                   }
                   .map(_.andThen(identity))
                 config <- json
                   .traverse { j =>
-                    Effect[E].delay(
+                    ee.delay(
                       FlatMapServiceConfiguration
                         .decoderFor[C]
                         .decodeJson(j)
@@ -161,17 +161,17 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                         .leftMap(_.toString()))
                   }
                   .map(_.andThen(identity))
-                _ <- Effect[E].delay {
+                _ <- ee.delay {
                   config.swap.foreach { e =>
                     println(s"Config test failed:\n $e")
                   }
                 }
-                exit <- Effect[E].pure({
+                exit <- ee.pure({
                   if (config.isValid) ExitCode(0) else ExitCode(1)
                 })
               } yield Stream.emit(exit).covary[E]
             case SideEffectyCommand(e) =>
-              Effect[E].delay {
+              ee.delay {
                 Stream.emit(e).covary[E]
               }
           }
