@@ -4,12 +4,14 @@ import java.nio.file.Path
 
 import cats.data.Kleisli
 import cats.effect.{Effect, IO}
-import fs2.{Pipe, Stream, StreamApp}
+import cats.syntax.apply.catsSyntaxTuple3Semigroupal
+import fs2.{Pipe, Stream, StreamApp, Sink}
 import com.monovore.decline._
 import io.circe.{Decoder, Encoder, Json}
 import fs2.StreamApp.ExitCode
 import cats.implicits._
 import cats.syntax._
+import cats.data.Validated
 import net.andimiller.fmaas.FlatMapServiceApp._
 import io.circe.parser.parse
 
@@ -44,6 +46,15 @@ abstract class FlatMapServiceApp[E[_]: Effect,
 
   def extraCommands: List[Opts[SideEffectyCommand]] =
     List.empty[Opts[SideEffectyCommand]]
+
+  // this is here to make IntellIJ complain less
+  def buildMainArgs(
+      t: (Validated[String, FlatMapServiceConfiguration[C]],
+          Validated[String, Stream[E, I]],
+          Validated[String, Sink[E, O]]))
+    : Validated[String,
+                (FlatMapServiceConfiguration[C], Stream[E, I], Sink[E, O])] =
+    catsSyntaxTuple3Semigroupal(t).mapN(Tuple3.apply)
 
   def stream(args: List[String],
              requestShutdown: E[Unit]): Stream[E, ExitCode] =
@@ -101,9 +112,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                   }
                 }
                 mainargs <- Effect[E].pure {
-                  (config, input, output).mapN {
-                    case (c, i, o) => Tuple3(c, i, o)
-                  }
+                  buildMainArgs((config, input, output))
                 }
                 main <- mainargs.traverse {
                   case (c, i, o) =>
