@@ -11,9 +11,14 @@ import io.circe.{Decoder, Encoder, Json}
 import fs2.StreamApp.ExitCode
 import cats.implicits._
 import cats.syntax._
+import cats.Show
 import cats.data.Validated
 import net.andimiller.fmaas.FlatMapServiceApp._
 import io.circe.parser.parse
+import Utilities._
+
+// TODO make this get passed in.. somehow
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.languageFeature.higherKinds
 
@@ -38,14 +43,15 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                                  IC: Connector,
                                  OC: Connector,
                                  I: Decoder,
-                                 O: Encoder]()
+                                 O: Encoder,
+                                 L: Show]()
     extends StreamApp[E] {
   self: Logging =>
   private val ee = Effect[E]
 
   def name: String
   def description: String
-  def flatMap: Kleisli[E, C, Pipe[E, I, O]]
+  def flatMap: Kleisli[E, C, Pipe[E, I, (List[Logging.LogMessage[L]], O)]]
 
   def extraCommands: List[Opts[SideEffectyCommand]] =
     List.empty[Opts[SideEffectyCommand]]
@@ -129,9 +135,11 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 main <- mainargs.traverse {
                   case (c, i, o) =>
-                    flatMap
-                      .apply(c.service)
-                      .map(fm => i.through(fm).to(o))
+                    flatMap.apply(c.service)
+                      .map(fm => i.through(fm)
+                        .mapObserve({s: Stream[E, (List[Logging.LogMessage[L]], O)] => s.flatMap(t => Stream.emits(t._1)) })(logSink[E, L])
+                        .mapObserve({s: Stream[E, (List[Logging.LogMessage[L]], O)] => s.map(_._2)} )(o)
+                      )
                       .map(_.flatMap { _ =>
                         Stream.empty.covaryAll[E, ExitCode]
                       })

@@ -27,15 +27,16 @@ object Main
                               Connector.StdinStdout,
                               Connector.StdinStdout,
                               ExampleIn,
-                              ExampleOut] with Logging.Slf4j {
+                              ExampleOut,
+                              String] with Logging.Slf4j {
   override def name = "reverser"
   override def description = "Reverses strings from stdin to stdout"
-  override def flatMap: Kleisli[IO, Config, Pipe[IO, ExampleIn, ExampleOut]] =
+  override def flatMap: Kleisli[IO, Config, Pipe[IO, ExampleIn, (List[Logging.LogMessage[String]], ExampleOut)]] =
     Kleisli { _ =>
       IO {
         { in: Stream[IO, ExampleIn] =>
           in.map { i =>
-            ExampleOut(i.value.reverse)
+            (List(Logging.LogMessage(Logging.Info, s"reversing string $i")), ExampleOut(i.value.reverse))
           }
         }
       }
