@@ -117,11 +117,15 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                   buildMainArgs((config, input, output))
                 }
                 errors <- ee.pure {
-                  mainargs.toEither.left.toOption.map { l =>
-                    Stream.emit(Logging.LogMessage(Logging.Error, l)).covary[E]
-                  }.getOrElse {
-                    Stream.empty.covary[E]
-                  }
+                  mainargs.toEither.left.toOption
+                    .map { l =>
+                      Stream
+                        .emit(Logging.LogMessage(Logging.Error, l))
+                        .covary[E]
+                    }
+                    .getOrElse {
+                      Stream.empty.covary[E]
+                    }
                 }
                 main <- mainargs.traverse {
                   case (c, i, o) =>
@@ -134,7 +138,9 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 exit <- ee.pure(ExitCode(0))
               } yield
-                errors.to(logSink[E, String]).flatMap(_ => Stream.empty.covaryAll[E, ExitCode]) ++ main.toOption
+                errors
+                  .to(logSink[E, String])
+                  .flatMap(_ => Stream.empty.covaryAll[E, ExitCode]) ++ main.toOption
                   .getOrElse(Stream.empty.covaryAll[E, ExitCode]) ++ Stream
                   .emit(exit)
             case Test(path) =>
