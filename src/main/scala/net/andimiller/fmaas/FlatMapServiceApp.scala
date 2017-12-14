@@ -35,8 +35,9 @@ object FlatMapServiceApp {
   * @tparam C the Configuration file you'd like to use, needs a Decoder
   * @tparam IC input connector type
   * @tparam OC output connector type
-  * @tparam I input type
-  * @tparam O output type
+  * @tparam I input type, needs a Decoder
+  * @tparam O output type, needs an Encoder
+  * @tparam L type to send to the logger, needs a Show
   */
 abstract class FlatMapServiceApp[E[_]: Effect,
                                  C: Decoder,
@@ -47,6 +48,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                                  L: Show]()
     extends StreamApp[E] {
   self: Logging =>
+
   private val ee = Effect[E]
 
   def name: String
@@ -135,11 +137,19 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 main <- mainargs.traverse {
                   case (c, i, o) =>
-                    flatMap.apply(c.service)
-                      .map(fm => i.through(fm)
-                        .mapObserve({s: Stream[E, (List[Logging.LogMessage[L]], O)] => s.flatMap(t => Stream.emits(t._1)) })(logSink[E, L])
-                        .mapObserve({s: Stream[E, (List[Logging.LogMessage[L]], O)] => s.map(_._2)} )(o)
-                      )
+                    flatMap
+                      .apply(c.service)
+                      .map(
+                        fm =>
+                          i.through(fm)
+                            .mapObserve({
+                              s: Stream[E, (List[Logging.LogMessage[L]], O)] =>
+                                s.flatMap(t => Stream.emits(t._1))
+                            })(logSink[E, L])
+                            .mapObserve({
+                              s: Stream[E, (List[Logging.LogMessage[L]], O)] =>
+                                s.map(_._2)
+                            })(o))
                       .map(_.flatMap { _ =>
                         Stream.empty.covaryAll[E, ExitCode]
                       })
