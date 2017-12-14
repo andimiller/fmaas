@@ -14,3 +14,7 @@ libraryDependencies ++= Seq("circe-core", "circe-generic", "circe-parser").map("
 libraryDependencies ++= Seq("com.monovore" %% "decline" % "0.4.0-RC1")
 // separate this out maybe?
 libraryDependencies += "io.circe" %% "circe-yaml" % "0.7.0-M2"
+
+
+// remove this once tested
+libraryDependencies += "org.slf4j" % "slf4j-log4j12" % "1.7.25"

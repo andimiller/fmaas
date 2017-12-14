@@ -5,7 +5,7 @@ import java.nio.file.Path
 import cats.data.Kleisli
 import cats.effect.{Effect, IO}
 import cats.syntax.apply.catsSyntaxTuple3Semigroupal
-import fs2.{Pipe, Stream, StreamApp, Sink}
+import fs2.{Pipe, Pure, Sink, Stream, StreamApp}
 import com.monovore.decline._
 import io.circe.{Decoder, Encoder, Json}
 import fs2.StreamApp.ExitCode
@@ -40,6 +40,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                                  I: Decoder,
                                  O: Encoder]()
     extends StreamApp[E] {
+  self: Logging =>
   private val ee = Effect[E]
 
   def name: String
@@ -115,6 +116,13 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 mainargs <- ee.pure {
                   buildMainArgs((config, input, output))
                 }
+                errors <- ee.pure {
+                  mainargs.toEither.left.toOption.map { l =>
+                    Stream.emit(Logging.LogMessage(Logging.Error, l)).covary[E]
+                  }.getOrElse {
+                    Stream.empty.covary[E]
+                  }
+                }
                 main <- mainargs.traverse {
                   case (c, i, o) =>
                     flatMap
@@ -126,7 +134,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 }
                 exit <- ee.pure(ExitCode(0))
               } yield
-                main.toOption
+                errors.to(logSink[E, String]).flatMap(_ => Stream.empty.covaryAll[E, ExitCode]) ++ main.toOption
                   .getOrElse(Stream.empty.covaryAll[E, ExitCode]) ++ Stream
                   .emit(exit)
             case Test(path) =>
