@@ -16,6 +16,9 @@ import cats.data.Validated
 import net.andimiller.fmaas.FlatMapServiceApp._
 import io.circe.parser.parse
 import Utilities._
+import org.http4s.HttpService
+import org.http4s.implicits._
+import org.http4s.server.blaze.BlazeBuilder
 
 // TODO make this get passed in.. somehow
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -40,7 +43,7 @@ object FlatMapServiceApp {
   * @tparam L type to send to the logger, needs a Show
   */
 abstract class FlatMapServiceApp[E[_]: Effect,
-                                 C: Decoder,
+                                 C: Decoder: Encoder,
                                  IC: Connector,
                                  OC: Connector,
                                  I: Decoder,
@@ -55,8 +58,18 @@ abstract class FlatMapServiceApp[E[_]: Effect,
   def description: String
   def flatMap: Kleisli[E, C, Pipe[E, I, (List[Logging.LogMessage[L]], O)]]
 
+  def extraAdminEndpoints: HttpService[E] = AdminResource.empty[E]
   def extraCommands: List[Opts[SideEffectyCommand]] =
     List.empty[Opts[SideEffectyCommand]]
+
+  def buildAdminEndpoints(c: FlatMapServiceConfiguration[C]): HttpService[E] = {
+    implicit val ce = FlatMapServiceConfiguration.encoderFor[C]
+    AdminResource
+      .adminResource[E, FlatMapServiceConfiguration[C]](
+        c,
+        getClass.getPackage.getImplementationVersion)
+      .combineK(extraAdminEndpoints)
+  }
 
   // this is here to make IntellIJ complain less
   def buildMainArgs(
@@ -154,13 +167,23 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                         Stream.empty.covaryAll[E, ExitCode]
                       })
                 }
+                adminServer <- config.traverse { c =>
+                  ee.delay {
+                    BlazeBuilder[E]
+                      .bindHttp(c.adminPort, "0.0.0.0")
+                      .mountService(buildAdminEndpoints(c), "/")
+                      .serve
+                  }
+                }
                 exit <- ee.pure(ExitCode(0))
-              } yield
+              } yield {
                 errors
                   .to(logSink[E, String])
                   .flatMap(_ => Stream.empty.covaryAll[E, ExitCode]) ++ main.toOption
                   .getOrElse(Stream.empty.covaryAll[E, ExitCode]) ++ Stream
                   .emit(exit)
+              }.concurrently(
+                adminServer.toOption.getOrElse(Stream.empty.covaryAll[E, Unit]))
             case Test(path) =>
               for {
                 fileExists <- ee.delay {

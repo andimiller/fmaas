@@ -1,6 +1,6 @@
 package net.andimiller.fmaas
 
-import io.circe.{Decoder, Json}
+import io.circe.{Decoder, Encoder, Json}
 
 case class FlatMapServiceConfiguration[C](
     input: Json,
@@ -14,4 +14,8 @@ object FlatMapServiceConfiguration {
   def decoderFor[C](
       implicit d: Decoder[C]): Decoder[FlatMapServiceConfiguration[C]] =
     deriveDecoder[FlatMapServiceConfiguration[C]]
+  def encoderFor[C](
+      implicit c: Encoder[C]
+  ): Encoder[FlatMapServiceConfiguration[C]] =
+    deriveEncoder[FlatMapServiceConfiguration[C]]
 }

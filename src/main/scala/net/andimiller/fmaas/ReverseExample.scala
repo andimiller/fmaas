@@ -8,6 +8,7 @@ case class Config(blah: String)
 object Config {
   import io.circe.generic.auto._
   implicit val configDecoder = implicitly[Decoder[Config]]
+  implicit val configEncoder = implicitly[Encoder[Config]]
 }
 
 case class ExampleIn(value: String)
