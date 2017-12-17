@@ -6,6 +6,7 @@ case class FlatMapServiceConfiguration[C](
     input: Json,
     output: Json,
     adminPort: Int,
+    adminHost: String,
     service: C
 )
 

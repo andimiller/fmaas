@@ -1,5 +1,6 @@
 input: {}
 output: {}
 adminPort: 9090
+adminHost: localhost
 service:
   blah: blaaah

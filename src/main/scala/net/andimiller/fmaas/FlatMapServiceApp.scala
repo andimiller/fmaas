@@ -170,7 +170,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                 adminServer <- config.traverse { c =>
                   ee.delay {
                     BlazeBuilder[E]
-                      .bindHttp(c.adminPort, "0.0.0.0")
+                      .bindHttp(c.adminPort, c.adminHost)
                       .mountService(buildAdminEndpoints(c), "/")
                       .serve
                   }
