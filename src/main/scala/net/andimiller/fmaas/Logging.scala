@@ -31,6 +31,12 @@ object Logging {
   type LoggerSink[E[_], T] = Sink[E, LogMessage[T]]
 
 
+  trait None extends Logging {
+    override def logSink[E[_] : Effect, T: Show]: Sink[E, LogMessage[T]] = Sink[E, LogMessage[T]] { _ =>
+      Effect[E].pure(())
+    }
+  }
+
   trait Slf4j extends Logging {
 
     override def logSink[E[_]: Effect, T: Show]: Sink[E, LogMessage[T]] = Sink[E, LogMessage[T]] { lm =>
