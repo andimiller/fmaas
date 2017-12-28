@@ -157,7 +157,7 @@ abstract class FlatMapServiceApp[E[_]: Effect,
                           i.through(fm)
                             .mapObserve({
                               s: Stream[E, (List[Logging.LogMessage[L]], O)] =>
-                                s.flatMap(t => Stream.emits(t._1))
+                                s.flatMap(t => Stream.emits(t._1).covary[E])
                             })(logSink[E, L])
                             .mapObserve({
                               s: Stream[E, (List[Logging.LogMessage[L]], O)] =>
